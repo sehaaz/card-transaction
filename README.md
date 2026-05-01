@@ -277,3 +277,38 @@ curl http://localhost:8082/api/transactions/1
 | `transaction-db` | `postgres:15` | 5432 | 5434 |
 | `card-service` | `./card-service` | 8081 | 8081 |
 | `transaction-service` | `./transaction-service` | 8082 | 8082 |
+
+graph TD
+    Client([Kentkart Mobil Uygulama / Validatör]) -->|REST API :8082| TS[Transaction Service]
+    Client -->|REST API :8081| CS[Card Service]
+    
+    TS -->|Senkron REST Çağrısı| CS
+    
+    TS -->|Spring Data JPA| TDB[(Transaction DB :5434)]
+    CS -->|Spring Data JPA| CDB[(Card DB :5433)]
+    
+    classDef service fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef db fill:#bbf,stroke:#333,stroke-width:2px;
+    class TS,CS service;
+    class TDB,CDB db;
+
+sequenceDiagram
+    participant V as Validatör (Client)
+    participant TS as Transaction Service
+    participant CS as Card Service
+    participant DB as Databases
+    
+    V->>TS: POST /api/transactions (Kart No, Tutar, PAYMENT)
+    Note over TS: İşlem tipi kontrolü
+    TS->>CS: GET /api/cards/{id} 
+    CS-->>TS: Güncel Bakiye Bilgisi
+    
+    alt Yetersiz Bakiye
+        TS-->>V: 422 INSUFFICIENT_BALANCE
+    else Yeterli Bakiye
+        TS->>DB: İşlemi "Transaction DB"ye Kaydet
+        TS->>CS: PUT /api/cards/{id}/topup (Negatif Tutar)
+        CS->>DB: Bakiyeyi "Card DB"de Güncelle
+        CS-->>TS: 200 OK (Bakiye Düşüldü)
+        TS-->>V: 200 OK (Ödeme Başarılı)
+    end
