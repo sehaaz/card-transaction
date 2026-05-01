@@ -17,19 +17,79 @@ A microservices-based REST API built with Spring Boot for managing transit cards
 ### High-Level Architecture
 
 ```mermaid
-graph TD
-    Client([Mobile App / Validator]) -->|REST API :8082| TS[Transaction Service]
-    Client -->|REST API :8081| CS[Card Service]
-    
-    TS -->|Synchronous REST Call| CS
-    
-    TS -->|Spring Data JPA| TDB[(Transaction DB :5434)]
-    CS -->|Spring Data JPA| CDB[(Card DB :5433)]
-    
-    classDef service fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef db fill:#bbf,stroke:#333,stroke-width:2px;
-    class TS,CS service;
-    class TDB,CDB db;
+graph TB
+    Client([Client / Mobile App / Validator])
+
+    Client -->|"POST /api/cards/createCard\nGET /api/cards\nGET /api/cards/{id}\nPUT /api/cards/{id}/topup\n:8081"| CS_CTRL
+
+    Client -->|"POST /api/transactions\nGET /api/transactions\nGET /api/transactions/{cardId}\n:8082"| TS_CTRL
+
+    subgraph DOCKER["Docker Compose Network"]
+        direction TB
+
+        subgraph CS_BOX["card-service :8081"]
+            direction TB
+            CS_CTRL["CardController\n@RestController"]
+            CS_DTO["CreateCardRequest | TopUpRequest\nErrorResponse"]
+            CS_SVC["CardService\n@Transactional"]
+            CS_REPO["CardRepository\nJpaRepository"]
+            CS_EXC["GlobalExceptionHandler\nCardNotFoundException\nInvalidOwnerNameException\nInvalidAmountException"]
+
+            CS_CTRL -->|"DTO"| CS_DTO
+            CS_CTRL --> CS_SVC
+            CS_SVC --> CS_REPO
+            CS_CTRL -.->|"throws"| CS_EXC
+            CS_SVC -.->|"throws"| CS_EXC
+        end
+
+        subgraph TS_BOX["transaction-service :8082"]
+            direction TB
+            TS_CTRL["TransactionController\n@RestController"]
+            TS_DTO["TransactionRequest\nErrorResponse"]
+            TS_SVC["TransactionService\n@Transactional"]
+            TS_REST["RestTemplate"]
+            TS_REPO["TransactionRepository\nJpaRepository"]
+            TS_EXC["GlobalExceptionHandler\nInvalidCardIdException\nInvalidAmountException\nInvalidTransactionTypeException\nInsufficientBalanceException\nCardServiceException"]
+
+            TS_CTRL -->|"DTO"| TS_DTO
+            TS_CTRL --> TS_SVC
+            TS_SVC --> TS_REPO
+            TS_SVC --> TS_REST
+            TS_CTRL -.->|"throws"| TS_EXC
+            TS_SVC -.->|"throws"| TS_EXC
+        end
+
+        TS_REST -->|"GET /api/cards/{id}\n(balance check)\nPUT /api/cards/{id}/topup\n(update balance)"| CS_CTRL
+
+        subgraph DB_LAYER["PostgreSQL 15 Databases"]
+            direction LR
+            CDB[("card-db\ncarddb :5433\n\nCards Table:\nid · cardNumber · ownerName\nbalance · createdAt")]
+            TDB[("transaction-db\ntransactiondb :5434\n\nTransactions Table:\nid · cardId · amount\ntype · createdAt")]
+        end
+
+        CS_REPO -->|"JDBC"| CDB
+        TS_REPO -->|"JDBC"| TDB
+    end
+
+    classDef client fill:#ffeaa7,stroke:#fdcb6e,stroke-width:2px,color:#2d3436
+    classDef controller fill:#74b9ff,stroke:#0984e3,stroke-width:2px,color:#2d3436
+    classDef service fill:#a29bfe,stroke:#6c5ce7,stroke-width:2px,color:#fff
+    classDef repo fill:#55efc4,stroke:#00b894,stroke-width:2px,color:#2d3436
+    classDef dto fill:#ffeaa7,stroke:#fdcb6e,stroke-width:1px,color:#2d3436
+    classDef exc fill:#ff7675,stroke:#d63031,stroke-width:1px,color:#fff
+    classDef db fill:#dfe6e9,stroke:#636e72,stroke-width:2px,color:#2d3436
+    classDef rest fill:#fd79a8,stroke:#e84393,stroke-width:2px,color:#fff
+    classDef docker fill:#f8f9fa,stroke:#2d3436,stroke-width:3px
+
+    class Client client
+    class CS_CTRL,TS_CTRL controller
+    class CS_SVC,TS_SVC service
+    class CS_REPO,TS_REPO repo
+    class CS_DTO,TS_DTO dto
+    class CS_EXC,TS_EXC exc
+    class CDB,TDB db
+    class TS_REST rest
+    class DOCKER docker
 ```
 
 ---
