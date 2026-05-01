@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  card-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: carddb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - card-db-data:/var/lib/postgresql/data
+
+  transaction-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: transactiondb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - transaction-db-data:/var/lib/postgresql/data
+
+  card-service:
+    build: ./card-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      - card-db
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://card-db:5432/carddb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+  transaction-service:
+    build: ./transaction-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      - transaction-db
+      - card-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://transaction-db:5432/transactiondb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      CARD_SERVICE_URL: http://card-service:8081
+
+volumes:
+  card-db-data:
+  transaction-db-data:
