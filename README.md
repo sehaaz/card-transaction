@@ -11,6 +11,7 @@ A microservices-based REST API built with Spring Boot for managing transit cards
 - **Inter-service Communication:** `transaction-service` communicates synchronously via `RestTemplate` with `card-service` to verify and update card balances.
 - **Layered Design:** Controller -> Service -> Repository pattern using DTOs for data transfer.
 - **Error Handling:** Centralized `@RestControllerAdvice` provides consistent error responses.
+- **API Documentation:** Interactive API documentation provided via `Swagger` for easy testing and exploration.
 - **Dockerized:** All components run seamlessly in a shared Docker Compose network.
 
 ### High-Level Architecture
@@ -51,6 +52,17 @@ graph TD
 | `POST` | `/api/transactions` | Record a transaction (TOPUP or PAYMENT) |
 | `GET` | `/api/transactions` | List all transactions |
 | `GET` | `/api/transactions/{cardId}` | Get transactions by card ID |
+
+---
+
+## API Documentation (Swagger UI)
+
+Both services include interactive Swagger UI for easy exploration and testing of the endpoints. 
+
+Once the application is running via Docker Compose, you can access the Swagger documentation using the following links:
+
+* **Card Service API Docs:** [http://localhost:8081/swagger-ui/index.html](http://localhost:8081/swagger-ui/index.html)
+* **Transaction Service API Docs:** [http://localhost:8082/swagger-ui/index.html](http://localhost:8082/swagger-ui/index.html)
 
 ---
 
@@ -112,16 +124,6 @@ sequenceDiagram
 | `card-service` | **Card** | `id`, `cardNumber` (UUID), `ownerName`, `balance`, `createdAt` |
 | `transaction-service` | **Transaction** | `id`, `cardId`, `amount`, `type` (TOPUP/PAYMENT), `createdAt` |
 
-### Global Error Format
-```json
-{
-  "timestamp": "2026-05-01T14:30:00",
-  "status": 400,
-  "error": "ERROR_CODE",
-  "message": "Human readable description"
-}
-```
-
 ---
 
 ## How to Run & Usage
@@ -143,23 +145,4 @@ docker-compose up --build
 
 # 3. Stop & Clean DBs
 docker-compose down -v
-```
-
-### Quick Test via cURL
-
-```bash
-# Create Card
-curl -X POST http://localhost:8081/api/cards \
-  -H "Content-Type: application/json" \
-  -d '{"ownerName": "John Doe"}'
-
-# Top-up via Transaction Service
-curl -X POST http://localhost:8082/api/transactions \
-  -H "Content-Type: application/json" \
-  -d '{"cardId": 1, "amount": 50.00, "type": "TOPUP"}'
-
-# Payment via Transaction Service
-curl -X POST http://localhost:8082/api/transactions \
-  -H "Content-Type: application/json" \
-  -d '{"cardId": 1, "amount": 10.00, "type": "PAYMENT"}'
 ```
